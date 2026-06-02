@@ -1,0 +1,183 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  background: #f4f5f7;
+  color: #1f2329;
+}
+
+.app {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.header h1 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.controls input {
+  margin-left: 4px;
+  padding: 4px 6px;
+}
+
+.controls .thread {
+  color: #6b7280;
+}
+
+button {
+  cursor: pointer;
+  border: 1px solid #d0d5dd;
+  background: #fff;
+  border-radius: 6px;
+  padding: 6px 12px;
+}
+
+button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+@media (max-width: 800px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.panel h2 {
+  font-size: 16px;
+  margin: 0 0 12px;
+}
+
+.chat {
+  height: 70vh;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.hint {
+  color: #6b7280;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.msg {
+  display: flex;
+  gap: 8px;
+  line-height: 1.5;
+}
+
+.msg .role {
+  flex-shrink: 0;
+}
+
+.msg.user .content {
+  background: #e0f2fe;
+  padding: 8px 12px;
+  border-radius: 10px;
+}
+
+.msg.assistant .content {
+  background: #f3f4f6;
+  padding: 8px 12px;
+  border-radius: 10px;
+  white-space: pre-wrap;
+}
+
+.composer {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.composer input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+}
+
+.memory-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.memory-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+}
+
+.memory-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  background: #fafafa;
+}
+
+.memory-value {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.memory-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.memory-meta .del {
+  padding: 2px 8px;
+  font-size: 12px;
+  color: #b91c1c;
+}
