@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { sendChat } from "../api";
+import { streamChat } from "../api";
 import type { ChatMessage } from "../types";
 
 interface Props {
@@ -18,20 +18,36 @@ export default function ChatPanel({ userId, threadId, onAfterReply }: Props) {
     const text = input.trim();
     if (!text || busy) return;
 
-    setMessages((m) => [...m, { role: "user", content: text }]);
+    // ユーザー発話と、ストリーミング先の空 assistant メッセージを用意する
+    setMessages((m) => [
+      ...m,
+      { role: "user", content: text },
+      { role: "assistant", content: "" },
+    ]);
     setInput("");
     setBusy(true);
     try {
-      const res = await sendChat(userId, threadId, text);
-      setMessages((m) => [...m, { role: "assistant", content: res.reply }]);
+      await streamChat(userId, threadId, text, (token) => {
+        // 末尾の assistant メッセージにトークンを追記していく
+        setMessages((m) => {
+          const next = [...m];
+          const last = next[next.length - 1];
+          next[next.length - 1] = { ...last, content: last.content + token };
+          return next;
+        });
+      });
       // 背景抽出には少し遅延があるため、応答直後と数秒後の両方で更新する
       onAfterReply();
       setTimeout(onAfterReply, 3500);
     } catch (err) {
-      setMessages((m) => [
-        ...m,
-        { role: "assistant", content: `⚠️ エラー: ${String(err)}` },
-      ]);
+      setMessages((m) => {
+        const next = [...m];
+        next[next.length - 1] = {
+          role: "assistant",
+          content: `⚠️ エラー: ${String(err)}`,
+        };
+        return next;
+      });
     } finally {
       setBusy(false);
     }
@@ -47,13 +63,22 @@ export default function ChatPanel({ userId, threadId, onAfterReply }: Props) {
             別の会話で「私の好きな飲み物は？」と聞いてみてください。
           </p>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={`msg ${m.role}`}>
-            <span className="role">{m.role === "user" ? "🧑" : "🤖"}</span>
-            <span className="content">{m.content}</span>
-          </div>
-        ))}
-        {busy && <div className="msg assistant">🤖 考え中…</div>}
+        {messages.map((m, i) => {
+          // ストリーミング待ちの空 assistant バブルは「考え中…」表示に置き換える
+          const isPendingAssistant =
+            busy &&
+            m.role === "assistant" &&
+            m.content === "" &&
+            i === messages.length - 1;
+          return (
+            <div key={i} className={`msg ${m.role}`}>
+              <span className="role">{m.role === "user" ? "🧑" : "🤖"}</span>
+              <span className="content">
+                {isPendingAssistant ? "考え中…" : m.content}
+              </span>
+            </div>
+          );
+        })}
       </div>
       <form className="composer" onSubmit={submit}>
         <input
