@@ -8,7 +8,7 @@ from langgraph.store.postgres import AsyncPostgresStore
 from app.agent import build_agent
 from app.config import settings
 from app.llm import get_embeddings
-from app.memory import build_reflection
+from app.memory import build_general_reflection, build_profile_reflection
 from app.routers import chat, memories
 from app.schemas import HealthResponse
 
@@ -38,7 +38,9 @@ async def lifespan(app: FastAPI):
 
         app.state.store = store
         app.state.agent = build_agent(store, saver)
-        app.state.reflection = build_reflection(store)
+        # ハイブリッド記憶: 一般記憶（エピソード）と構造化プロフィールを別々に抽出する
+        app.state.reflection_general = build_general_reflection(store)
+        app.state.reflection_profile = build_profile_reflection(store)
 
         yield
 
