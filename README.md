@@ -53,15 +53,15 @@ docker compose up --build
 # 1. 疎通確認
 curl localhost:8000/health
 
-# 2. 記憶を保存
-curl -X POST localhost:8000/api/chat -H 'content-type: application/json' \
+# 2. 記憶を保存（応答は SSE でトークンを逐次配信。-N でバッファリングを無効化）
+curl -N -X POST localhost:8000/api/chat -H 'content-type: application/json' \
   -d '{"user_id":"alice","thread_id":"t1","message":"私の名前は田中で、コーヒーが好きです"}'
 
 # 3. 数秒後、抽出された長期記憶を確認
 curl "localhost:8000/api/memories?user_id=alice"
 
 # 4. 別スレッドで想起（長期記憶が会話を跨ぐ）
-curl -X POST localhost:8000/api/chat -H 'content-type: application/json' \
+curl -N -X POST localhost:8000/api/chat -H 'content-type: application/json' \
   -d '{"user_id":"alice","thread_id":"t2","message":"私の好きな飲み物は何でしたか？"}'
 ```
 

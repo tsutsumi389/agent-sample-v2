@@ -3,11 +3,6 @@ export interface ChatMessage {
   content: string;
 }
 
-export interface ChatResponse {
-  reply: string;
-  thread_id: string;
-}
-
 export interface MemoryItem {
   key: string;
   value: unknown;
