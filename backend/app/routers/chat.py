@@ -36,7 +36,8 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
       最終状態（全 messages）を取り出し、応答後のバックグラウンド記憶抽出へ渡す。
     """
     agent = request.app.state.agent
-    reflection = request.app.state.reflection
+    reflection_general = request.app.state.reflection_general
+    reflection_profile = request.app.state.reflection_profile
 
     config = {"configurable": {"thread_id": req.thread_id, "user_id": req.user_id}}
 
@@ -63,13 +64,12 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                     if isinstance(output, dict):
                         final_messages = output.get("messages")
 
-            # ハイブリッド: 応答後にバックグラウンドで会話から記憶を抽出する
+            # ハイブリッド: 応答後にバックグラウンドで会話から記憶を抽出する。
+            # 一般記憶（エピソード）と構造化プロフィールを別々に抽出する。
             if final_messages:
-                reflection.submit(
-                    {"messages": final_messages},
-                    config=config,
-                    after_seconds=2,
-                )
+                payload = {"messages": final_messages}
+                reflection_general.submit(payload, config=config, after_seconds=2)
+                reflection_profile.submit(payload, config=config, after_seconds=2)
             yield _sse("done", {"thread_id": req.thread_id})
         except Exception as e:  # 生成途中の失敗をクライアントへ通知
             yield _sse("error", {"message": str(e)})
