@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AIエージェントのパーソナライズ手法 トレンド調査レポート（2026年6月）</title>
+<style>
+  :root {
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --accent: #2563eb;
+    --accent-light: #dbeafe;
+    --ok: #16a34a;
+    --ok-bg: #f0fdf4;
+    --warn: #d97706;
+    --warn-bg: #fffbeb;
+    --border: #e2e8f0;
+    --code-bg: #f1f5f9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    margin: 0;
+    padding: 0;
+  }
+  .container { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+  header.hero {
+    background: linear-gradient(135deg, #1e3a8a, #2563eb);
+    color: #fff;
+    padding: 3rem 1.5rem 2.5rem;
+  }
+  header.hero .container { padding: 0 1.5rem; }
+  header.hero h1 { font-size: 1.7rem; margin: 0 0 .5rem; line-height: 1.4; }
+  header.hero p { margin: 0; opacity: .85; font-size: .95rem; }
+  h2 {
+    font-size: 1.35rem;
+    border-left: 5px solid var(--accent);
+    padding-left: .75rem;
+    margin-top: 3rem;
+  }
+  h3 { font-size: 1.1rem; margin-top: 2rem; color: #1e3a8a; }
+  section.card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.75rem;
+    margin-top: 1rem;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .92rem; }
+  th, td { border: 1px solid var(--border); padding: .55rem .75rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent-light); font-weight: 600; }
+  tr:nth-child(even) td { background: #fafcff; }
+  code {
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: .1rem .35rem;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: .85em;
+  }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+    font-size: .82rem;
+    line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; color: inherit; }
+  .badge {
+    display: inline-block;
+    border-radius: 999px;
+    font-size: .75rem;
+    font-weight: 600;
+    padding: .1rem .6rem;
+    vertical-align: middle;
+  }
+  .badge.ok { background: var(--ok-bg); color: var(--ok); border: 1px solid #bbf7d0; }
+  .badge.warn { background: var(--warn-bg); color: var(--warn); border: 1px solid #fde68a; }
+  .badge.info { background: var(--accent-light); color: var(--accent); border: 1px solid #bfdbfe; }
+  .summary-box {
+    background: var(--accent-light);
+    border-left: 5px solid var(--accent);
+    border-radius: 0 8px 8px 0;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+  }
+  .summary-box strong { color: #1e3a8a; }
+  ul li, ol li { margin-bottom: .35rem; }
+  .priority-high { color: #dc2626; font-weight: 700; }
+  .priority-mid { color: var(--warn); font-weight: 700; }
+  .priority-low { color: var(--muted); font-weight: 700; }
+  footer { color: var(--muted); font-size: .8rem; margin-top: 3rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+  a { color: var(--accent); }
+  .toc { font-size: .92rem; }
+  .toc ol { margin: .25rem 0; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="container">
+    <h1>AIエージェントのパーソナライズ手法<br>トレンド調査レポート</h1>
+    <p>対象: agent-sample-v2（LangGraph + LangMem + pgvector）／ 調査日: 2026年6月4日</p>
+  </div>
+</header>
+
+<div class="container">
+
+<section class="card toc">
+  <strong>目次</strong>
+  <ol>
+    <li><a href="#summary">エグゼクティブサマリー</a></li>
+    <li><a href="#current">現在の実装の概要</a></li>
+    <li><a href="#trends">2026年のトレンド</a></li>
+    <li><a href="#assessment">トレンド適合性の評価</a></li>
+    <li><a href="#schema">推奨: 長期記憶に持たせるべき項目</a></li>
+    <li><a href="#roadmap">改善ロードマップ案</a></li>
+    <li><a href="#sources">参考ソース</a></li>
+  </ol>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="summary">1. エグゼクティブサマリー</h2>
+<section class="card">
+  <div class="summary-box">
+    <strong>結論: 現在の実装は2026年のトレンドの「中核部分」に概ね沿っている。</strong><br>
+    ハイブリッド記憶（ホットパス＋バックグラウンド抽出）、構造化プロフィール、プロアクティブ想起という3本柱は、
+    Mem0 / LangMem / ChatGPT メモリ等が採用する標準パターンと一致する。
+    一方で、<strong>①記憶タイプの分類（エピソード／意味／手続き）、②時間メタデータと陳腐化管理、
+    ③ハイブリッド検索、④信頼度・出所の管理</strong> がギャップとして残る。
+  </div>
+  <p>長期記憶の項目設計については、現状の <code>UserProfile</code>（5項目）は良い出発点だが、
+  業界標準と研究事例を踏まえると <strong>「アイデンティティ／専門性／応答スタイル／目標・進行中の文脈／制約」</strong>
+  を加えた拡張と、記憶アイテムごとの <strong>メタデータ（タイムスタンプ・信頼度・出所）</strong> の付与を推奨する（詳細は <a href="#schema">第5章</a>）。</p>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="current">2. 現在の実装の概要</h2>
+<section class="card">
+  <h3>2.1 アーキテクチャ</h3>
+  <table>
+    <tr><th>要素</th><th>実装</th></tr>
+    <tr><td>スタック</td><td>FastAPI + LangGraph（ReAct）+ LangMem + PostgreSQL（pgvector, 768次元）+ Ollama（gemma4 / nomic-embed-text）</td></tr>
+    <tr><td>記憶ストア</td><td><code>("memories", user_id)</code>: フリーテキスト一般記憶（蓄積型）<br><code>("profile", user_id)</code>: 構造化プロフィール（単一オブジェクト・上書き型）</td></tr>
+    <tr><td>書き込み</td><td>ハイブリッド方式。①応答中はエージェントが <code>manage_memory</code> / <code>search_memory</code> ツールで能動操作、②応答後に <code>ReflectionExecutor</code>（after_seconds=2）でLLMによるバックグラウンド抽出（一般記憶・プロフィールの2系統）</td></tr>
+    <tr><td>想起</td><td>プロアクティブ方式。毎ターン <code>dynamic_prompt</code> が直近ユーザー発話で意味検索（各 limit=5）し、「# 既知のユーザー情報」としてシステムプロンプトへ注入</td></tr>
+    <tr><td>可視性</td><td>記憶・プロフィールの取得／削除 API（<code>GET/DELETE /profile</code> 等）と MemoryPanel UI</td></tr>
+  </table>
+
+  <h3>2.2 現在のプロフィール項目（backend/app/profile.py）</h3>
+  <table>
+    <tr><th>フィールド</th><th>型</th><th>内容</th></tr>
+    <tr><td><code>name</code></td><td>str | None</td><td>名前・呼び名</td></tr>
+    <tr><td><code>locale</code></td><td>str | None</td><td>使用言語・地域</td></tr>
+    <tr><td><code>attributes</code></td><td>list[str]</td><td>所属・職業・立場などの安定属性</td></tr>
+    <tr><td><code>preferences</code></td><td>list[str]</td><td>好み・興味・嗜好</td></tr>
+    <tr><td><code>response_style</code></td><td>str | None</td><td>好む応答スタイル</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="trends">3. 2026年のトレンド</h2>
+
+<section class="card">
+  <h3>3.1 記憶タイプの標準分類（CoALAフレームワーク由来）</h3>
+  <p>2026年時点で、エージェント記憶は <strong>3〜4タイプの分類が業界標準</strong> になっている
+  （Princeton の CoALA フレームワーク〈2023〉が起源。LangMem SDK もこの3分類を採用）。</p>
+  <table>
+    <tr><th>タイプ</th><th>保存するもの</th><th>更新パターン</th></tr>
+    <tr><td><strong>意味記憶（Semantic）</strong></td><td>事実・ユーザーの好み・属性・ドメイン知識。「ユーザーは何者か／何が事実か」</td><td>上書き・統合（プロフィール型）＋蓄積（事実コレクション型）</td></tr>
+    <tr><td><strong>エピソード記憶（Episodic）</strong></td><td>過去の具体的なやり取り: 何が起きたか・取った行動・結果・タイムスタンプ。事例ベース推論の材料</td><td>追記のみ（イベントログ型）</td></tr>
+    <tr><td><strong>手続き記憶（Procedural）</strong></td><td>「どうやるか」: 学習した対応パターン、フィードバック由来のルール。LangMemでは「エージェントが自身のシステムプロンプトを書き換える」形で実装</td><td>フィードバック駆動で漸進更新</td></tr>
+    <tr><td><strong>インコンテキスト記憶</strong></td><td>作業領域（会話履歴・ツール出力）。他タイプから「何を取り込むか」の設計が肝</td><td>ターンごと</td></tr>
+  </table>
+
+  <h3>3.2 主要フレームワークの動向</h3>
+  <table>
+    <tr><th>フレームワーク</th><th>特徴</th></tr>
+    <tr><td><strong>Mem0</strong>（48k+ stars, $24M Series A）</td><td>ベクトル意味検索が基本＋上位プランでエンティティ関係のナレッジグラフ。<strong>user_id / agent_id / session_id / org_id の4スコープ設計</strong>が特徴</td></tr>
+    <tr><td><strong>Zep / Graphiti</strong></td><td><strong>時系列ナレッジグラフ</strong>。事実に有効期間（valid_at / invalid_at）を持たせ、「変化を置き換えではなく進化として扱う」</td></tr>
+    <tr><td><strong>Letta</strong>（旧MemGPT）</td><td>OS風の階層記憶（core / recall / archival）。LLM自身が記憶階層を管理</td></tr>
+    <tr><td><strong>LangMem</strong></td><td>LangChain純正。3記憶タイプ対応、ストレージ非依存。<em>本プロジェクトが採用中</em></td></tr>
+  </table>
+
+  <h3>3.3 商用アシスタントの実装（参考になる実例）</h3>
+  <p><strong>ChatGPT</strong> は2層構造: ①「Saved memories」（明示的・ユーザー編集可能な事実リスト）＋②「Reference chat history」（過去チャットの暗黙的参照）。
+  さらに内部的にシステムプロンプトへ注入されるプロフィールは次のカテゴリを持つことが判明している:</p>
+  <ul>
+    <li><strong>Assistant Response Preferences</strong> — 応答スタイルの好み（口調・検証習慣など）</li>
+    <li><strong>Notable Past Conversation Topic Highlights</strong> — 過去会話の主要トピック</li>
+    <li><strong>Helpful User Insights</strong> — 居住地・趣味・ライフスタイル等のインサイト</li>
+    <li><strong>User Interaction Metadata</strong> — デバイス・利用頻度・モデル使用統計</li>
+  </ul>
+  <p><strong>Claude</strong> は対照的に「プロフィール要約を作らず、生の会話履歴を都度検索する」透明性重視の設計
+  （<code>conversation_search</code> / <code>recent_chats</code> ツール）＋プロジェクト単位の記憶分離。
+  「<strong>要約プロフィール型（ChatGPT）vs 生履歴検索型（Claude）</strong>」という設計思想の対立軸が存在する。</p>
+
+  <h3>3.4 検索（想起）手法の進化</h3>
+  <p>2026年の大きな潮流は<strong>「純粋なベクトル類似検索からの脱却」</strong>。
+  最新システムは ①意味的類似度 ②BM25キーワードマッチ ③エンティティマッチ の3信号を並列実行し正規化・融合する。
+  リランキング（多段再スコアリング）とメタデータフィルタリング（構造化属性での絞り込み）もプロダクション必須要件とされる。</p>
+
+  <h3>3.5 プロダクションで確立されたパターン</h3>
+  <ol>
+    <li><strong>非同期書き込みがデフォルト</strong> — 記憶抽出が応答レイテンシに影響しない設計</li>
+    <li><strong>タイムスタンプ管理</strong> — 時間情報のない記憶は時系列推論で破綻する</li>
+    <li><strong>記憶の陳腐化対策</strong> — 「高頻度で検索される古い情報が誤った確信度で保持される」問題への対処（信頼度・鮮度の管理）</li>
+    <li><strong>ユーザーによる可視化・編集</strong> — ChatGPT / Claude とも記憶の閲覧・削除・オプトアウトを提供。プライバシー設計が差別化要因に</li>
+    <li><strong>異なるライフサイクルの分離</strong> — 「情報ごとにライフサイクルが違うため、同じ方法で保存・検索すべきでない」（arXiv:2510.07925）</li>
+  </ol>
+
+  <h3>3.6 研究面の知見（arXiv:2510.07925 ほか）</h3>
+  <ul>
+    <li>三層構造（短期記憶=全文 → 要約 → 長期記憶=埋め込み＋LLM生成タグ＋タイムスタンプ）＋構造化JSONプロフィールの組み合わせで、検索精度がRAGベースライン比 <strong>+21.3%</strong>（LoCoMo, GPT-4o）</li>
+    <li><strong>ユーザープロフィールを除去すると検索精度が最大7%低下</strong> — 構造化プロフィールの有効性のエビデンス</li>
+    <li>プロフィールは「事前定義された空のカテゴリを持つ構造化JSON」をLLMが継続的に更新する方式（本プロジェクトと同型）</li>
+    <li>ベンチマークは LoCoMo / LongMemEval / BEAM が標準化。ただし大規模化（10Mトークン）で性能が約半減するなど、時間的抽象化・セッション間ID解決は未解決課題</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="assessment">4. トレンド適合性の評価</h2>
+<section class="card">
+  <h3>4.1 トレンドに沿っている点 <span class="badge ok">準拠</span></h3>
+  <table>
+    <tr><th>観点</th><th>評価</th></tr>
+    <tr><td>ハイブリッド書き込み（ホットパス＋バックグラウンド抽出）</td><td><span class="badge ok">✓</span> Mem0等が確立した「非同期抽出をデフォルトに」のパターンに合致。<code>after_seconds=2</code> の遅延実行も妥当</td></tr>
+    <tr><td>構造化プロフィール（Pydanticスキーマ抽出）</td><td><span class="badge ok">✓</span> 「事前定義カテゴリの構造化JSONをLLMが更新」という研究・ChatGPT実装と同型。プロフィール有無で検索精度+7%のエビデンスあり</td></tr>
+    <tr><td>プロアクティブ想起（dynamic_promptでの毎ターン注入）</td><td><span class="badge ok">✓</span> ChatGPT型の「自動注入」アプローチ。エージェント任せのツール呼び出しより安定（特にローカルモデル）という判断は合理的</td></tr>
+    <tr><td>ネームスペース分離（profile / memories × user_id）</td><td><span class="badge ok">✓</span> Mem0のマルチスコープ設計の簡易版として正しい方向。蓄積型と上書き型のライフサイクル分離もトレンド通り</td></tr>
+    <tr><td>記憶の可視化・削除UI／API</td><td><span class="badge ok">✓</span> 透明性・ユーザー制御のトレンドに合致</td></tr>
+  </table>
+
+  <h3>4.2 ギャップ <span class="badge warn">改善余地</span></h3>
+  <table>
+    <tr><th>観点</th><th>ギャップ内容</th><th>優先度</th></tr>
+    <tr><td>記憶タイプの分類</td><td>「一般記憶」が意味記憶とエピソード記憶を区別せず混在。標準の3分類（意味／エピソード／手続き）に対し手続き記憶が欠落</td><td class="priority-high">高</td></tr>
+    <tr><td>時間メタデータ</td><td>記憶にタイムスタンプ・有効期間がなく、「先月引っ越した」等の時系列推論や情報の更新（古い好み vs 新しい好み）に対応できない</td><td class="priority-high">高</td></tr>
+    <tr><td>陳腐化・信頼度管理</td><td>記憶の鮮度・信頼度・出所（ユーザー明言か推測か）の概念がない。2026年の主要未解決課題として認識されている領域</td><td class="priority-mid">中</td></tr>
+    <tr><td>検索手法</td><td>純粋ベクトル検索のみ。トレンドはベクトル＋BM25＋エンティティマッチの融合＋リランキング（ローカルデモの規模では実害は小さい）</td><td class="priority-mid">中</td></tr>
+    <tr><td>記憶の統合・重複排除</td><td>一般記憶が無制限に蓄積。矛盾する記憶の解決・統合（consolidation）の仕組みがない（LangMemのmanagerに統合機能はあるが明示活用していない）</td><td class="priority-mid">中</td></tr>
+    <tr><td>スコープ設計</td><td>user_id単位のみ。session/プロジェクト単位の記憶分離（Claudeのプロジェクト別メモリ、Mem0のrun_id/org_idスコープ）がない</td><td class="priority-low">低</td></tr>
+  </table>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="schema">5. 推奨: 長期記憶に持たせるべき項目</h2>
+<section class="card">
+  <p>業界実装（ChatGPT / Mem0 / Zep）・研究（arXiv:2510.07925, CoALA）・現実装の制約（ローカルLLM）を踏まえた推奨項目。
+  <strong>3記憶タイプ＋共通メタデータ</strong>の構成とする。</p>
+
+  <h3>5.1 構造化プロフィール（意味記憶・上書き型）— UserProfile の拡張</h3>
+  <table>
+    <tr><th>カテゴリ</th><th>フィールド案</th><th>内容・根拠</th><th>現状</th></tr>
+    <tr>
+      <td rowspan="3"><strong>アイデンティティ</strong></td>
+      <td><code>name</code></td><td>名前・呼び名</td><td><span class="badge ok">あり</span></td>
+    </tr>
+    <tr><td><code>locale</code></td><td>言語・地域</td><td><span class="badge ok">あり</span></td></tr>
+    <tr><td><code>timezone</code></td><td>タイムゾーン（日時表現のパーソナライズに必須）</td><td><span class="badge warn">追加推奨</span></td></tr>
+    <tr>
+      <td rowspan="2"><strong>属性</strong></td>
+      <td><code>attributes</code></td><td>職業・所属・立場・家族構成などの安定属性</td><td><span class="badge ok">あり</span></td>
+    </tr>
+    <tr><td><code>expertise</code></td><td>専門領域と習熟度（例:「Python上級」「機械学習は初学者」）。説明の深さ・前提知識の調整に直結。研究でも「expertise level」は主要プロフィール項目</td><td><span class="badge warn">追加推奨</span></td></tr>
+    <tr>
+      <td rowspan="2"><strong>嗜好</strong></td>
+      <td><code>preferences</code></td><td>好み・興味・嗜好（好きなもの）</td><td><span class="badge ok">あり</span></td>
+    </tr>
+    <tr><td><code>dislikes</code></td><td>嫌い・避けたいもの（NG話題・苦手な形式）。「やらないこと」は「やること」と同等に重要だが混在させると検索で埋もれる</td><td><span class="badge warn">追加推奨</span></td></tr>
+    <tr>
+      <td rowspan="2"><strong>コミュニケーション</strong></td>
+      <td><code>response_style</code></td><td>口調・詳しさ・形式の好み（ChatGPTの「Assistant Response Preferences」に相当）</td><td><span class="badge ok">あり</span></td>
+    </tr>
+    <tr><td><code>communication_patterns</code></td><td>質問の仕方の癖・検証を求める習慣・例示を好む等の対話特性</td><td><span class="badge info">任意</span></td></tr>
+    <tr>
+      <td rowspan="2"><strong>文脈</strong></td>
+      <td><code>goals</code></td><td>中長期の目標・進行中のプロジェクト（例:「資格試験勉強中」「アプリ開発中」）。「次に何を手伝うべきか」のプロアクティブ性の源泉。ChatGPTのsaved memoriesでも「ongoing projects」は中心項目</td><td><span class="badge warn">追加推奨</span></td>
+    </tr>
+    <tr><td><code>constraints</code></td><td>制約・配慮事項（アレルギー・利用環境・予算・時間制約など）。安全性・実用性に直結するため独立カテゴリが望ましい</td><td><span class="badge warn">追加推奨</span></td></tr>
+  </table>
+
+  <pre><code># 拡張版 UserProfile のイメージ（Pydantic）
+class UserProfile(BaseModel):
+    # アイデンティティ
+    name: str | None = None
+    locale: str | None = None
+    timezone: str | None = None
+    # 属性
+    attributes: list[str] = []        # 職業・所属・家族構成など
+    expertise: list[str] = []         # 専門領域と習熟度
+    # 嗜好
+    preferences: list[str] = []       # 好み・興味
+    dislikes: list[str] = []          # 苦手・避けたいこと
+    # コミュニケーション
+    response_style: str | None = None
+    # 文脈
+    goals: list[str] = []             # 目標・進行中のプロジェクト
+    constraints: list[str] = []       # 制約・配慮事項</code></pre>
+
+  <h3>5.2 エピソード記憶（蓄積型）— 現「一般記憶」の構造化</h3>
+  <p>フリーテキスト1本ではなく、最低限のメタデータを持つレコードにする。
+  Zepの時系列グラフほど重くせずとも、<strong>タイムスタンプと種別だけで時系列推論・陳腐化判定が大きく改善</strong>する。</p>
+  <table>
+    <tr><th>フィールド</th><th>内容</th></tr>
+    <tr><td><code>content</code></td><td>事実・出来事の要約（現状と同じ）</td></tr>
+    <tr><td><code>kind</code></td><td><code>fact</code>（意味的事実）/ <code>event</code>(出来事) / <code>feedback</code>(ユーザーからの指摘) の種別</td></tr>
+    <tr><td><code>occurred_at</code> / <code>recorded_at</code></td><td>出来事の発生時期と記録時刻。「先週」「来月」等の相対表現を絶対日時に解決して保存</td></tr>
+    <tr><td><code>source</code></td><td><code>stated</code>（ユーザー明言）/ <code>inferred</code>（LLM推測）。信頼度の根拠になる</td></tr>
+    <tr><td><code>confidence</code></td><td>抽出時の確信度（推測由来は低め）。注入時のフィルタやプロフィール昇格の判断材料</td></tr>
+    <tr><td><code>last_accessed_at</code></td><td>最終想起時刻。陳腐化判定・容量管理（古く参照されない記憶の減衰）に使用</td></tr>
+  </table>
+
+  <h3>5.3 手続き記憶（フィードバック駆動・少数精鋭）</h3>
+  <p>LangMemが「エージェントが自身のシステムプロンプトを書き換える」形でサポートする領域。
+  ユーザーからの修正・指摘（「箇条書きにして」「敬語はいらない」）を<strong>行動ルール</strong>として蓄積し、
+  <code>dynamic_prompt</code> で常時注入する。<code>response_style</code> の発展形として、まずは
+  「<code>interaction_rules: list[str]</code>」をプロフィールに追加する程度の軽量実装でもトレンドの方向性は満たせる。</p>
+
+  <h3>5.4 持たせるべきでないもの（アンチパターン）</h3>
+  <ul>
+    <li><strong>一時的・些末な情報</strong>（現在のINSTRUCTIONSで既に除外済み — 正しい設計）</li>
+    <li><strong>機微情報の無断推測</strong>（健康状態・政治信条・宗教等をLLMが推測して保存するのは避け、ユーザー明言時のみ・出所付きで保存）</li>
+    <li><strong>会話の生ログ全文</strong>（長期記憶は要約・抽出した事実のみ。生ログはcheckpointer側の責務）</li>
+    <li><strong>アシスタント自身の発言由来の「事実」</strong>（ChatGPTがユーザーメッセージのみを記録するのは、誤った応答の内容が事実として固着するのを防ぐため）</li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="roadmap">6. 改善ロードマップ案</h2>
+<section class="card">
+  <table>
+    <tr><th>フェーズ</th><th>内容</th><th>工数感</th></tr>
+    <tr>
+      <td><strong>Phase 1</strong><br><span class="priority-high">優先度: 高</span></td>
+      <td>① <code>UserProfile</code> の拡張（timezone / expertise / dislikes / goals / constraints 追加）<br>② 一般記憶へのタイムスタンプ・kind・source付与（保存時メタデータ）<br>③ 抽出INSTRUCTIONSの更新（相対日時の絶対化、推測と明言の区別）</td>
+      <td>小（スキーマ変更＋プロンプト調整が中心）</td>
+    </tr>
+    <tr>
+      <td><strong>Phase 2</strong><br><span class="priority-mid">優先度: 中</span></td>
+      <td>① 記憶の統合・重複排除（LangMem managerの統合機能の明示活用）<br>② 注入時の鮮度・信頼度フィルタ（古い記憶の減衰、confidence閾値）<br>③ <code>dynamic_prompt</code> でプロフィールは全文注入・エピソードのみ検索、に分離（プロフィールは1オブジェクトなので検索不要）</td>
+      <td>中</td>
+    </tr>
+    <tr>
+      <td><strong>Phase 3</strong><br><span class="priority-low">優先度: 低（規模拡大時）</span></td>
+      <td>① ハイブリッド検索（pgvectorのベクトル＋PostgreSQL全文検索の融合）<br>② 手続き記憶（フィードバック→行動ルールの自動学習）<br>③ プロジェクト／セッション別スコープの追加</td>
+      <td>大</td>
+    </tr>
+  </table>
+  <p class="summary-box">補足: ローカルLLM（gemma4）の構造化出力の安定性が拡張スキーマのボトルネックになり得る。
+  フィールドを増やす際は「一度に全項目を抽出」ではなく、Phase 1ではプロフィール抽出を2回に分ける
+  （基本属性／文脈系）等の分割も検討に値する。</p>
+</section>
+
+<!-- ============================================================ -->
+<h2 id="sources">7. 参考ソース</h2>
+<section class="card">
+  <ul>
+    <li><a href="https://arxiv.org/abs/2510.07925">Enabling Personalized Long-term Interactions in LLM-based Agents through Persistent Memory and User Profiles (arXiv:2510.07925)</a></li>
+    <li><a href="https://mem0.ai/blog/state-of-ai-agent-memory-2026">State of AI Agent Memory 2026: Benchmarks, Architectures & Production Gaps (Mem0)</a></li>
+    <li><a href="https://atlan.com/know/types-of-ai-agent-memory/">Types of AI Agent Memory: Episodic, Semantic, Procedural and More (Atlan)</a></li>
+    <li><a href="https://atlan.com/know/best-ai-agent-memory-frameworks-2026/">Best AI Agent Memory Frameworks in 2026 (Atlan)</a></li>
+    <li><a href="https://agentmarketcap.ai/blog/2026/04/10/agent-memory-vendor-landscape-2026-letta-zep-mem0-langmem">Agent Memory at Scale 2026: Letta, Zep, Mem0, and LangMem Compared (AgentMarketCap)</a></li>
+    <li><a href="https://simonwillison.net/2025/Sep/12/claude-memory/">Comparing the memory implementations of Claude and ChatGPT (Simon Willison)</a></li>
+    <li><a href="https://simonwillison.net/2025/May/21/chatgpt-new-memory/">I really don't like ChatGPT's new memory dossier (Simon Willison) — ChatGPT内部プロフィール構造の分析</a></li>
+    <li><a href="https://www.analyticsvidhya.com/blog/2026/04/memory-systems-in-ai-agents/">Architecture and Orchestration of Memory Systems in AI Agents (Analytics Vidhya)</a></li>
+    <li><a href="https://github.com/Shichun-Liu/Agent-Memory-Paper-List">Memory in the Age of AI Agents: A Survey — Paper List (GitHub)</a></li>
+    <li><a href="https://gleecus.com/blogs/ai-agent-memory-intelligent-ai-agents-2026/">What Is AI Agent Memory in 2026 (Gleecus)</a></li>
+  </ul>
+</section>
+
+<footer>
+  agent-sample-v2 パーソナライズ手法トレンド調査レポート ／ 作成: 2026-06-04 ／ 調査手段: コードベース分析＋Web調査（一次ソース複数）
+</footer>
+
+</div>
+</body>
+</html>

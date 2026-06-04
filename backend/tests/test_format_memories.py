@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from app.agent import _format_memories, _format_memory_value
+from app.agent import _format_items
 
 
 def _item(value):
@@ -10,53 +10,41 @@ def _item(value):
     return SimpleNamespace(value=value)
 
 
-def test_unwraps_kind_content_envelope_with_string():
-    # langmem の一般記憶: {"kind": "Memory", "content": {"content": "..."}}
-    value = {"kind": "Memory", "content": {"content": "コーヒーが好き"}}
-    assert _format_memory_value(value) == "コーヒーが好き"
-
-
-def test_handles_plain_content_dict():
-    # 素の {"content": "..."} 形
-    assert _format_memory_value({"content": "営業職"}) == "営業職"
-
-
-def test_formats_structured_profile_dict_skipping_empty():
-    # UserProfile の dump（エンベロープ込み）。空項目は除外される
-    value = {
-        "kind": "UserProfile",
-        "content": {
-            "name": "田中",
-            "locale": None,
-            "attributes": [],
-            "preferences": ["コーヒー", "読書"],
-            "response_style": "簡潔",
-        },
-    }
-    out = _format_memory_value(value)
-    assert "name: 田中" in out
-    assert "preferences: コーヒー、読書" in out
-    assert "response_style: 簡潔" in out
-    assert "locale" not in out  # None は除外
-    assert "attributes" not in out  # 空リストは除外
-
-
-def test_handles_plain_string_value():
-    assert _format_memory_value("そのままの文字列") == "そのままの文字列"
-
-
-def test_format_memories_combines_profile_and_memories():
-    profile = [_item({"kind": "UserProfile", "content": {"name": "田中"}})]
-    memories = [
+def test_format_items_serializes_each_value_as_json_line():
+    # langmem のエンベロープ（{"kind","content"}）をそのまま JSON で出す（剥がさない）
+    items = [
         _item({"kind": "Memory", "content": {"content": "コーヒーが好き"}}),
         _item({"content": "本を読む"}),
     ]
-    out = _format_memories(profile, memories)
+    out = _format_items(items)
     lines = out.split("\n")
-    assert lines[0] == "- [プロフィール] name: 田中"
-    assert "- コーヒーが好き" in lines
-    assert "- 本を読む" in lines
+    assert lines[0] == '{"kind": "Memory", "content": {"content": "コーヒーが好き"}}'
+    assert lines[1] == '{"content": "本を読む"}'
 
 
-def test_format_memories_empty():
-    assert _format_memories([], []) == ""
+def test_format_items_keeps_japanese_unescaped():
+    # ensure_ascii=False: 日本語が \uXXXX にエスケープされない
+    out = _format_items([_item({"content": "田中"})])
+    assert "田中" in out
+    assert "\\u" not in out
+
+
+def test_format_items_serializes_structured_profile():
+    value = {
+        "kind": "UserProfile",
+        "content": {"name": "田中", "preferences": ["コーヒー", "読書"]},
+    }
+    out = _format_items([_item(value)])
+    assert '"name": "田中"' in out
+    assert '"preferences": ["コーヒー", "読書"]' in out
+
+
+def test_format_items_skips_empty_values():
+    # 値が空（None・空dict）のアイテムは行を作らない
+    items = [_item(None), _item({}), _item({"content": "有効"})]
+    out = _format_items(items)
+    assert out == '{"content": "有効"}'
+
+
+def test_format_items_empty():
+    assert _format_items([]) == ""
