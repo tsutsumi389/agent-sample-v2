@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { streamChat } from "../api";
-import type { ChatMessage } from "../types";
+import type { ChatMessage, PhaseEvent, ProgressEntry } from "../types";
 
 interface Props {
   userId: string;
@@ -8,10 +8,62 @@ interface Props {
   onAfterReply: () => void;
 }
 
+/** 現在のフェーズをユーザー向けのステータス文言にする */
+function phaseLabel(phase: PhaseEvent): string {
+  const labels = {
+    planner: "計画中…",
+    executor: "回答生成中…",
+    evaluator: "評価中…",
+  } as const;
+  return `${labels[phase.node]}（試行 ${phase.iteration}）`;
+}
+
+/** 進捗エントリ1件の表示 */
+function ProgressLine({ entry }: { entry: ProgressEntry }) {
+  if (entry.kind === "plan") {
+    return (
+      <div className="progress-line plan-box">
+        <span className="progress-tag">📝 計画（試行 {entry.iteration}）</span>
+        <pre>{entry.text}</pre>
+      </div>
+    );
+  }
+  if (entry.kind === "evaluation") {
+    const ok = entry.verdict === "ok";
+    return (
+      <div className={`progress-line ${ok ? "eval-ok" : "eval-ng"}`}>
+        <span className="progress-tag">
+          {ok ? "✅ 評価: 合格" : "❌ 評価: 不合格"}（試行 {entry.iteration}
+          {entry.score != null ? ` / score ${entry.score}` : ""}）
+        </span>
+        {entry.feedback && <pre>{entry.feedback}</pre>}
+      </div>
+    );
+  }
+  return (
+    <div className="progress-line retry-note">
+      <span className="progress-tag">🔄 再計画します（試行 {entry.iteration}）</span>
+    </div>
+  );
+}
+
 export default function ChatPanel({ userId, threadId, onAfterReply }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<PhaseEvent | null>(null);
+
+  // 末尾（ストリーミング中の assistant）メッセージを不変更新するヘルパー
+  const updateLast = (fn: (m: ChatMessage) => ChatMessage) => {
+    setMessages((m) => {
+      const next = [...m];
+      next[next.length - 1] = fn(next[next.length - 1]);
+      return next;
+    });
+  };
+
+  const appendProgress = (entry: ProgressEntry) =>
+    updateLast((m) => ({ ...m, progress: [...(m.progress ?? []), entry] }));
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,19 +74,35 @@ export default function ChatPanel({ userId, threadId, onAfterReply }: Props) {
     setMessages((m) => [
       ...m,
       { role: "user", content: text },
-      { role: "assistant", content: "" },
+      { role: "assistant", content: "", progress: [] },
     ]);
     setInput("");
     setBusy(true);
+    setPhase(null);
     try {
-      await streamChat(userId, threadId, text, (token) => {
-        // 末尾の assistant メッセージにトークンを追記していく
-        setMessages((m) => {
-          const next = [...m];
-          const last = next[next.length - 1];
-          next[next.length - 1] = { ...last, content: last.content + token };
-          return next;
-        });
+      await streamChat(userId, threadId, text, {
+        // Executor（最終回答）のトークンを末尾の assistant メッセージへ追記
+        onToken: (token) =>
+          updateLast((m) => ({ ...m, content: m.content + token })),
+        onPhase: (p) => {
+          setPhase(p);
+          // 再試行の回答生成が始まる直前に不合格ドラフトを破棄し、
+          // 最後に合格（または採用）された回答だけが残るようにする
+          if (p.node === "executor" && p.iteration > 1) {
+            updateLast((m) => (m.content ? { ...m, content: "" } : m));
+          }
+        },
+        onPlan: (p) =>
+          appendProgress({ kind: "plan", iteration: p.iteration, text: p.text }),
+        onEvaluation: (ev) =>
+          appendProgress({
+            kind: "evaluation",
+            iteration: ev.iteration,
+            verdict: ev.verdict,
+            score: ev.score,
+            feedback: ev.feedback,
+          }),
+        onRetry: (r) => appendProgress({ kind: "retry", iteration: r.iteration }),
       });
       // 背景抽出には少し遅延があるため、応答直後と数秒後の両方で更新する
       onAfterReply();
@@ -50,6 +118,7 @@ export default function ChatPanel({ userId, threadId, onAfterReply }: Props) {
       });
     } finally {
       setBusy(false);
+      setPhase(null);
     }
   };
 
@@ -64,17 +133,30 @@ export default function ChatPanel({ userId, threadId, onAfterReply }: Props) {
           </p>
         )}
         {messages.map((m, i) => {
-          // ストリーミング待ちの空 assistant バブルは「考え中…」表示に置き換える
+          // ストリーミング待ちの空 assistant バブルは現在フェーズの表示に置き換える
           const isPendingAssistant =
             busy &&
             m.role === "assistant" &&
             m.content === "" &&
             i === messages.length - 1;
+          const hasProgress = (m.progress?.length ?? 0) > 0;
           return (
             <div key={i} className={`msg ${m.role}`}>
               <span className="role">{m.role === "user" ? "🧑" : "🤖"}</span>
               <span className="content">
-                {isPendingAssistant ? "考え中…" : m.content}
+                {hasProgress && (
+                  <details className="progress">
+                    <summary>エージェントの動き</summary>
+                    {m.progress!.map((entry, j) => (
+                      <ProgressLine key={j} entry={entry} />
+                    ))}
+                  </details>
+                )}
+                {isPendingAssistant
+                  ? phase
+                    ? phaseLabel(phase)
+                    : "考え中…"
+                  : m.content}
               </span>
             </div>
           );
