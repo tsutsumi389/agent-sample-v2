@@ -1,7 +1,6 @@
 """app.agent のグラフ構成と recall ノードの単体テスト（DB・Ollama 不要）。"""
 
 import asyncio
-from types import SimpleNamespace
 
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -9,11 +8,6 @@ from app.agent.formatting import _build_system_text
 from app.agent.graph import build_agent
 from app.agent.nodes import recall_node
 from app.agent.prompts import EXECUTOR_SYSTEM_PROMPT, PLANNER_SYSTEM_PROMPT
-
-
-def _item(value):
-    """store の検索結果アイテムを模した最小オブジェクト（.value を持つ）。"""
-    return SimpleNamespace(value=value)
 
 
 class _StubStore:
@@ -28,11 +22,11 @@ class _StubStore:
         return self.results.get(namespace, [])
 
 
-def test_recall_node_injects_profile_and_memories():
+def test_recall_node_injects_profile_and_memories(make_item):
     store = _StubStore(
         {
-            ("profile", "u1"): [_item({"kind": "UserProfile", "content": {"name": "田中"}})],
-            ("memories", "u1"): [_item({"kind": "Memory", "content": {"content": "コーヒーが好き"}})],
+            ("profile", "u1"): [make_item({"kind": "UserProfile", "content": {"name": "田中"}})],
+            ("memories", "u1"): [make_item({"kind": "Memory", "content": {"content": "コーヒーが好き"}})],
         }
     )
     state = {"messages": [HumanMessage("おすすめの飲み物は？")]}

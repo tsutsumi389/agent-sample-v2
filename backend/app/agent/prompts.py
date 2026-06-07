@@ -22,6 +22,15 @@ PLANNER_SYSTEM_PROMPT = f"""あなたは回答計画の立案担当（プラン�
 
 {MEMORY_GUIDE}"""
 
+# 評価 NG で再計画する際、Planner のシステムプロンプト末尾に注入するフィードバック
+# ブロックのテンプレート（{feedback} に Evaluator の指摘が入る）。
+PLANNER_FEEDBACK_TEMPLATE = """
+
+<evaluator_feedback>
+{feedback}
+</evaluator_feedback>
+前回の計画に基づく回答は上記の点で不十分と評価されました。フィードバックを反映した改善計画を立ててください。"""
+
 EXECUTOR_SYSTEM_PROMPT = f"""あなたは回答の実行担当（エグゼキューター）で、長期記憶を持つ
 親切な日本語アシスタントです。<plan> タグ内の計画に従い、ユーザーへの最終回答を
 作成してください。この出力がそのままユーザーに表示されます。

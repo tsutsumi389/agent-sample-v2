@@ -1,3 +1,5 @@
+import asyncio
+
 from langchain_core.messages import AIMessage, RemoveMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph.message import REMOVE_ALL_MESSAGES
@@ -5,6 +7,7 @@ from langgraph.store.base import BaseStore
 
 from app.agent.formatting import _format_items, _message_text
 from app.agent.state import AgentState
+from app.config import settings
 
 
 def finalize_node(state) -> dict:
@@ -64,11 +67,15 @@ async def recall_node(
     # プロアクティブ想起は付加機能。検索失敗（DB 一時断など）で会話全体を
     # 落とさず、記憶なしとして応答を継続する。
     try:
-        # プロフィール = 常時注入: query なし（類似度ランキング非依存）で必ず取得する。
-        # 単一の集約オブジェクト前提のため limit は安全弁（複数件できた場合の注入上限）。
-        profile_items = await store.asearch(("profile", user_id), limit=5)
-        # 一般記憶 = 話題依存: 意味検索で上位5件に厳選する
-        memory_items = await store.asearch(("memories", user_id), query=query, limit=5)
+        # 2つの検索は独立なので並列に投げ、recall ノードのレイテンシを抑える。
+        # - プロフィール = 常時注入: query なし（類似度ランキング非依存）で必ず取得する
+        # - 一般記憶 = 話題依存: 意味検索で上位件数に厳選する
+        profile_items, memory_items = await asyncio.gather(
+            store.asearch(("profile", user_id), limit=settings.RECALL_PROFILE_LIMIT),
+            store.asearch(
+                ("memories", user_id), query=query, limit=settings.RECALL_MEMORY_LIMIT
+            ),
+        )
     except Exception:  # noqa: BLE001
         return {"recalled_profile": "", "recalled_memories": "", **loop_init}
 

@@ -19,6 +19,7 @@ from app.agent.prompts import (
     EVALUATOR_SYSTEM_PROMPT,
     EXECUTOR_SYSTEM_PROMPT,
     MEMORY_GUIDE,
+    PLANNER_FEEDBACK_TEMPLATE,
     PLANNER_SYSTEM_PROMPT,
 )
 from app.agent.routing import executor_route, planner_route, route_after_eval
@@ -29,6 +30,7 @@ __all__ = [
     "EVALUATOR_SYSTEM_PROMPT",
     "EXECUTOR_SYSTEM_PROMPT",
     "MEMORY_GUIDE",
+    "PLANNER_FEEDBACK_TEMPLATE",
     "PLANNER_SYSTEM_PROMPT",
     "build_agent",
     "executor_route",
