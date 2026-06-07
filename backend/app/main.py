@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
 
-from app.agent import build_agent
+from app.agent.graph import build_agent
 from app.config import settings
 from app.llm import get_embeddings
 from app.memory import build_general_reflection, build_profile_reflection

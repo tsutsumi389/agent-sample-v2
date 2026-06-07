@@ -2,7 +2,7 @@
 
 from types import SimpleNamespace
 
-from app.agent import _format_items
+from app.agent.formatting import _format_items
 
 
 def _item(value):

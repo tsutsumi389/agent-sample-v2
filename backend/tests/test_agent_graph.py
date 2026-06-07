@@ -5,13 +5,10 @@ from types import SimpleNamespace
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.agent import (
-    EXECUTOR_SYSTEM_PROMPT,
-    PLANNER_SYSTEM_PROMPT,
-    _build_system_text,
-    build_agent,
-    recall_node,
-)
+from app.agent.formatting import _build_system_text
+from app.agent.graph import build_agent
+from app.agent.nodes import recall_node
+from app.agent.prompts import EXECUTOR_SYSTEM_PROMPT, PLANNER_SYSTEM_PROMPT
 
 
 def _item(value):
