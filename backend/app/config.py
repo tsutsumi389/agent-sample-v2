@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     OLLAMA_CHAT_MODEL: str = "gemma4:latest"
     OLLAMA_EMBED_MODEL: str = "nomic-embed-text:latest"
 
+    # チャットモデルの生成温度。
+    OLLAMA_TEMPERATURE: float = 0.3
+
     # nomic-embed-text の埋め込み次元。store の index.dims と一致させる。
     EMBED_DIMS: int = 768
 
@@ -24,6 +27,14 @@ class Settings(BaseSettings):
     # Planner / Executor の ReAct ループにおけるツール往復回数の上限。
     # ローカルモデルがツールを呼び続ける暴走の安全弁。
     MAX_TOOL_TURNS: int = 5
+
+    # プロアクティブ想起の注入件数上限。プロフィールは単一の集約オブジェクト前提の
+    # ため安全弁（複数件できた場合の注入上限）、一般記憶は意味検索の上位件数。
+    RECALL_PROFILE_LIMIT: int = 5
+    RECALL_MEMORY_LIMIT: int = 5
+
+    # 応答完了からバックグラウンド記憶抽出を開始するまでの遅延秒数。
+    REFLECTION_DELAY_SECONDS: int = 2
 
 
 settings = Settings()

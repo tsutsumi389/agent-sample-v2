@@ -2,8 +2,14 @@ import json
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessageChunk
 
+from app.agent.formatting import _message_text
+from app.agent.graph import (
+    NODE_EVALUATOR,
+    NODE_EXECUTOR,
+    NODE_PLANNER,
+    compute_recursion_limit,
+)
 from app.config import settings
 from app.schemas import ChatRequest
 
@@ -12,26 +18,15 @@ router = APIRouter(tags=["chat"])
 # グラフノード名 → フロントへ通知するフェーズ名。ここに無いノード（recall /
 # tools / finalize）はフェーズ通知しない。
 _PHASE_NODES = {
-    "planner_agent": "planner",
-    "executor_agent": "executor",
-    "evaluator": "evaluator",
+    NODE_PLANNER: "planner",
+    NODE_EXECUTOR: "executor",
+    NODE_EVALUATOR: "evaluator",
 }
 
 
 def _sse(event: str, data: dict) -> str:
     """1 件の SSE イベントを整形する（event 行 + data 行 + 空行区切り）。"""
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-
-
-def _chunk_text(msg_chunk: AIMessageChunk) -> str:
-    """AIMessageChunk からテキスト部分を取り出す（マルチパート content にも対応）。"""
-    content = msg_chunk.content
-    if isinstance(content, list):
-        return "".join(
-            part.get("text", "") if isinstance(part, dict) else str(part)
-            for part in content
-        )
-    return content or ""
 
 
 @router.post("/chat")
@@ -55,12 +50,9 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
     reflection_profile = request.app.state.reflection_profile
 
     config = {"configurable": {"thread_id": req.thread_id, "user_id": req.user_id}}
-    # Planner→Executor→Evaluator のループ × ReAct ツール往復でステップ数が増える
-    # ため、グラフ実行にのみ recursion_limit を引き上げて渡す。上限は設定値から
-    # 導出する: 試行ごとに planner/executor が各 (ツール往復×2 + 最終応答) ステップ
-    # + evaluator、さらに recall / finalize 分の余裕を持たせる。
-    recursion_limit = settings.MAX_PLAN_ITERATIONS * (4 * settings.MAX_TOOL_TURNS + 4) + 4
-    graph_config = {**config, "recursion_limit": recursion_limit}
+    # ループ × ReAct ツール往復でステップ数が増えるため、グラフ実行にのみ
+    # recursion_limit を引き上げて渡す（導出式はグラフ構造を知る graph 側に置く）。
+    graph_config = {**config, "recursion_limit": compute_recursion_limit()}
 
     async def event_stream():
         final_messages = None
@@ -82,9 +74,9 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                 if kind == "on_chat_model_stream":
                     # ユーザー向け回答を生成する executor のトークンだけを流す
                     node = ev.get("metadata", {}).get("langgraph_node")
-                    if node != "executor_agent":
+                    if node != NODE_EXECUTOR:
                         continue
-                    text = _chunk_text(ev["data"]["chunk"])
+                    text = _message_text(ev["data"]["chunk"])
                     if text:
                         yield _sse("token", {"text": text})
 
@@ -98,14 +90,14 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
                     name = ev.get("name")
                     output = ev["data"].get("output")
 
-                    if name == "planner_agent" and isinstance(output, dict):
+                    if name == NODE_PLANNER and isinstance(output, dict):
                         # ReAct 途中（ツール呼び出し）の終了では plan を含まない
                         plan = output.get("plan")
                         if plan:
                             attempt = output.get("iteration", attempt)
                             yield _sse("plan", {"text": plan, "iteration": attempt})
 
-                    elif name == "evaluator" and isinstance(output, dict):
+                    elif name == NODE_EVALUATOR and isinstance(output, dict):
                         evaluation = output.get("evaluation") or {}
                         if evaluation:
                             yield _sse(
@@ -142,8 +134,9 @@ async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
             # ループ中の計画・評価は含まれない。
             if final_messages:
                 payload = {"messages": final_messages}
-                reflection_general.submit(payload, config=config, after_seconds=2)
-                reflection_profile.submit(payload, config=config, after_seconds=2)
+                delay = settings.REFLECTION_DELAY_SECONDS
+                reflection_general.submit(payload, config=config, after_seconds=delay)
+                reflection_profile.submit(payload, config=config, after_seconds=delay)
             yield _sse("done", {"thread_id": req.thread_id})
         except Exception as e:  # 生成途中の失敗をクライアントへ通知
             yield _sse("error", {"message": str(e)})
