@@ -5,7 +5,13 @@ from types import SimpleNamespace
 
 from langchain_core.messages import AIMessage, HumanMessage
 
-from app.agent import SYSTEM_PROMPT_BASE, _build_system_text, build_agent, recall_node
+from app.agent import (
+    EXECUTOR_SYSTEM_PROMPT,
+    PLANNER_SYSTEM_PROMPT,
+    _build_system_text,
+    build_agent,
+    recall_node,
+)
 
 
 def _item(value):
@@ -50,6 +56,24 @@ def test_recall_node_injects_profile_and_memories():
     ]
 
 
+def test_recall_node_initializes_loop_fields():
+    # ターン冒頭でループ制御フィールドが初期化される（前ターンの残骸を持ち越さない）
+    store = _StubStore({})
+    state = {"messages": [HumanMessage("こんにちは")]}
+    config = {"configurable": {"user_id": "u1"}}
+
+    out = asyncio.run(recall_node(state, store=store, config=config))
+
+    assert out["plan"] == ""
+    assert out["draft"] == ""
+    assert out["evaluation"] == {}
+    assert out["feedback"] == ""
+    assert out["iteration"] == 0
+    # scratch は add_messages reducer のため REMOVE_ALL の RemoveMessage で消す
+    assert len(out["planner_scratch"]) == 1
+    assert len(out["executor_scratch"]) == 1
+
+
 def test_recall_node_uses_last_human_message_as_query():
     store = _StubStore({})
     state = {
@@ -74,7 +98,8 @@ def test_recall_node_without_user_id_skips_search():
 
     out = asyncio.run(recall_node(state, store=store, config=config))
 
-    assert out == {"recalled_profile": "", "recalled_memories": ""}
+    assert out["recalled_profile"] == ""
+    assert out["recalled_memories"] == ""
     assert store.calls == []
 
 
@@ -89,31 +114,52 @@ def test_recall_node_falls_back_to_empty_on_store_error():
 
     out = asyncio.run(recall_node(state, store=_BrokenStore(), config=config))
 
-    assert out == {"recalled_profile": "", "recalled_memories": ""}
+    assert out["recalled_profile"] == ""
+    assert out["recalled_memories"] == ""
 
 
 def test_build_system_text_without_memories():
-    assert _build_system_text("", "") == SYSTEM_PROMPT_BASE
+    assert _build_system_text(PLANNER_SYSTEM_PROMPT, "", "") == PLANNER_SYSTEM_PROMPT
 
 
 def test_build_system_text_injects_profile_and_memory_sections():
-    out = _build_system_text('{"name": "田中"}', '{"content": "コーヒーが好き"}')
-    assert out.startswith(SYSTEM_PROMPT_BASE)
+    out = _build_system_text(
+        EXECUTOR_SYSTEM_PROMPT, '{"name": "田中"}', '{"content": "コーヒーが好き"}'
+    )
+    assert out.startswith(EXECUTOR_SYSTEM_PROMPT)
     # プロフィール（常時）と記憶（話題依存）が XML タグで区切られて注入される
     assert '<user_profile>\n{"name": "田中"}\n</user_profile>' in out
     assert '<related_memories>\n{"content": "コーヒーが好き"}\n</related_memories>' in out
 
 
 def test_build_system_text_profile_only():
-    # SYSTEM_PROMPT_BASE の説明文にもタグ名が登場するため、注入セクションの有無は
+    # プロンプトの説明文にもタグ名が登場するため、注入セクションの有無は
     # 閉じタグで判定する
-    out = _build_system_text('{"name": "田中"}', "")
+    out = _build_system_text(EXECUTOR_SYSTEM_PROMPT, '{"name": "田中"}', "")
     assert "</user_profile>" in out
     assert "</related_memories>" not in out
 
 
 def test_build_agent_graph_structure():
-    # グラフ構成: START → recall → agent ⇄ tools → END（コンパイルのみ、LLM 呼び出し無し）
+    # グラフ構成: START → recall → planner ⇄ tools → executor ⇄ tools → evaluator
+    #             → finalize → END（コンパイルのみ、LLM 呼び出し無し）
     graph = build_agent(store=None, checkpointer=None)
-    nodes = set(graph.get_graph().nodes)
-    assert {"recall", "agent", "tools"} <= nodes
+    g = graph.get_graph()
+    nodes = set(g.nodes)
+    assert {
+        "recall",
+        "planner_agent",
+        "planner_tools",
+        "executor_agent",
+        "executor_tools",
+        "evaluator",
+        "finalize",
+    } <= nodes
+
+    # 評価 NG 時に Planner へ戻るループ辺（条件エッジ）が存在する
+    edges = {(e.source, e.target) for e in g.edges}
+    assert ("evaluator", "planner_agent") in edges
+    assert ("evaluator", "finalize") in edges
+    # ReAct ループ辺
+    assert ("planner_tools", "planner_agent") in edges
+    assert ("executor_tools", "executor_agent") in edges

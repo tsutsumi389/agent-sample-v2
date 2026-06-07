@@ -126,6 +126,58 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+/* マルチエージェント（Planner→Executor→Evaluator）の進捗表示 */
+.progress {
+  margin-bottom: 8px;
+  font-size: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  padding: 6px 8px;
+}
+
+.progress summary {
+  cursor: pointer;
+  color: #6b7280;
+  user-select: none;
+}
+
+.progress-line {
+  margin-top: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: #f9fafb;
+}
+
+.progress-line pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 12px;
+  color: #4b5563;
+}
+
+.progress-tag {
+  font-weight: 600;
+  color: #374151;
+}
+
+.plan-box {
+  background: #eff6ff;
+}
+
+.eval-ok {
+  background: #ecfdf5;
+}
+
+.eval-ng {
+  background: #fef2f2;
+}
+
+.retry-note {
+  background: #fffbeb;
+}
+
 .composer {
   display: flex;
   gap: 8px;

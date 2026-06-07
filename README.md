@@ -11,14 +11,32 @@
 
 ```
 React (Chat + 記憶ビューア)  ──/api──▶  FastAPI
-                                          └ LangGraph ReAct Agent
-                                              ├ LangMem 記憶ツール（ホットパス）
+                                          └ LangGraph マルチエージェント
+                                              ├ Planner（計画立案） ⇄ 記憶ツール
+                                              ├ Executor（回答生成） ⇄ 記憶ツール
+                                              ├ Evaluator（品質評価）─ NG → Planner へ再計画
                                               ├ ReflectionExecutor（背景で記憶抽出）
                                               ├ Checkpointer = 会話履歴（thread_id 単位）
                                               └ Store = 長期記憶（user_id 単位 / pgvector）
                                           │
                             PostgreSQL(pgvector)        Ollama（ホスト）
 ```
+
+### マルチエージェントループ（Planner → Executor → Evaluator）
+
+```
+START → recall（記憶想起）
+      → Planner（回答計画を立案）
+      → Executor（計画に従い回答を生成 = SSE でトークン配信）
+      → Evaluator（回答を評価）
+           ├ 合格 / 最大試行回数（MAX_PLAN_ITERATIONS, 既定3）到達 → 回答確定 → END
+           └ 不合格 → フィードバック付きで Planner へ戻り再計画
+```
+
+- 計画・評価・リトライ状況は SSE イベント（`phase` / `plan` / `evaluation` / `retry`）で
+  フロントエンドへ配信され、チャット UI の「エージェントの動き」に表示されます。
+- 会話履歴（checkpointer）には最終回答のみが残り、計画・評価などのループ内部情報は
+  履歴を汚しません。
 
 ### 記憶の仕組み（ハイブリッド）
 1. **ホットパス型**: エージェントが会話中に `manage_memory` / `search_memory` ツールを明示的に呼び出して保存・検索。
